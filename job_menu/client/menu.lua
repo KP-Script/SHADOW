@@ -1,8 +1,10 @@
 local ESX = exports["es_extended"]:getSharedObject()
 local PlayerData = {}
 local myRole = nil
+local IsHandcuffed = false
+local IsEscorted = false
+local civilianSkin = nil
 
--- Load Player Info
 RegisterNetEvent('esx:playerLoaded', function(xPlayer)
     PlayerData = xPlayer
     SetShadowCartelRole(xPlayer.job.name, xPlayer.job.grade)
@@ -14,33 +16,23 @@ RegisterNetEvent('esx:setJob', function(job)
 end)
 
 function SetShadowCartelRole(jobName, jobGrade)
-    if jobName ~= "sgod" then
+    if jobName ~= Config.JobName then
         myRole = nil
         return
     end
 
-    if jobGrade == 2 then
-        myRole = "Shadow Boss"
-    elseif jobGrade == 1 then
-        myRole = "Shadow Cat"
-    elseif jobGrade == 0 then
-        myRole = "Shadow Guard"
-    else
-        myRole = nil
-    end
+    myRole = jobGrade
 end
 
--- Open F6 on key press
 Citizen.CreateThread(function()
     while true do
         Wait(0)
-        if IsControlJustReleased(0, 167) and PlayerData.job and PlayerData.job.name == "sgod" then -- F6
+        if IsControlJustReleased(0, Config.button) and PlayerData.job and PlayerData.job.name == Config.JobName then
             OpenCartelMenu()
         end
     end
 end)
 
--- Main F6 Menu
 function OpenCartelMenu()
     ESX.UI.Menu.CloseAll()
     ESX.UI.Menu.Open('default', GetCurrentResourceName(), 'shadowcartel_main', {
@@ -59,13 +51,14 @@ function OpenCartelMenu()
             OpenVehicleInteractionMenu()
         elseif data.current.value == 'fine_player' then
             OpenFineMenu()
+        elseif data.current.value == 'other_options' then
+            OpenOtherOptionsMenu()
         end
     end, function(data, menu)
         menu.close()
     end)
 end
 
--- 👤 Player Interaction Menu
 function OpenPlayerInteractionMenu()
     local elements = {
         {label = '🔎 ID Search', value = 'id_search'},
@@ -87,30 +80,31 @@ function OpenPlayerInteractionMenu()
             return
         end
 
+        local targetId = GetPlayerServerId(closestPlayer)
+
         if data.current.value == 'id_search' then
-            TriggerServerEvent('shadowcartel:idSearch', GetPlayerServerId(closestPlayer))
+            TriggerServerEvent('shadowcartel:idSearch', targetId)
 
         elseif data.current.value == 'inv_search' then
-            TriggerServerEvent('shadowcartel:searchInventory', GetPlayerServerId(closestPlayer))
+            TriggerServerEvent('shadowcartel:searchInventory', targetId)
 
         elseif data.current.value == 'cuff' then
-            TriggerServerEvent('shadowcartel:toggleCuff', GetPlayerServerId(closestPlayer))
+            TriggerServerEvent('shadowcartel:toggleCuff', targetId)
 
         elseif data.current.value == 'escort' then
-            TriggerServerEvent('shadowcartel:escort', GetPlayerServerId(closestPlayer))
+            TriggerServerEvent('shadowcartel:escort', targetId)
 
         elseif data.current.value == 'put_in_vehicle' then
-            TriggerServerEvent('shadowcartel:putInVehicle', GetPlayerServerId(closestPlayer))
+            TriggerServerEvent('shadowcartel:putInVehicle', targetId)
 
         elseif data.current.value == 'drag_out' then
-            TriggerServerEvent('shadowcartel:dragOut', GetPlayerServerId(closestPlayer))
+            TriggerServerEvent('shadowcartel:dragOut', targetId)
         end
     end, function(data, menu)
         menu.close()
     end)
 end
 
--- 🚗 Vehicle Interaction Menu
 function OpenVehicleInteractionMenu()
     local elements = {
         {label = '🔍 Search Vehicle', value = 'veh_info'},
@@ -135,7 +129,6 @@ function OpenVehicleInteractionMenu()
         elseif data.current.value == 'unlock' then
             SetVehicleDoorsLocked(vehicle, 1)
             ESX.ShowNotification('🔓 Vehicle unlocked')
-            -- Add animation if needed
 
         elseif data.current.value == 'explode' then
             ESX.ShowNotification('💣 Vehicle will explode in 15 seconds')
@@ -149,7 +142,6 @@ function OpenVehicleInteractionMenu()
     end)
 end
 
--- 💰 Fine Menu
 function OpenFineMenu()
     local closestPlayer, distance = ESX.Game.GetClosestPlayer()
     if distance == -1 or distance > 3.0 then
@@ -181,7 +173,48 @@ function OpenFineMenu()
     end)
 end
 
--- 👊 Cuff, Escort, Drag, etc. (Triggers)
+function OpenOtherOptionsMenu()
+    local elements = {
+        {label = '💼 Change Outfit', value = 'change_outfit'},
+        {label = '📡 Connect to Radio', value = 'connect_radio'}
+    }
+
+    ESX.UI.Menu.Open('default', GetCurrentResourceName(), 'other_menu', {
+        title = 'Other Options',
+        align = 'right',
+        elements = elements
+    }, function(data, menu)
+        if data.current.value == 'change_outfit' then
+            ChangeOutfit()
+        elseif data.current.value == 'connect_radio' then
+            ExecuteCommand('radio '..Config.RadioChannel)
+            ESX.ShowNotification('📡 Connected to private radio channel: '..Config.RadioChannel)
+        end
+    end, function(data, menu)
+        menu.close()
+    end)
+end
+
+function ChangeOutfit()
+    TriggerEvent('skinchanger:getSkin', function(skin)
+        if not civilianSkin then
+            civilianSkin = skin
+            local outfit = Config.Outfits[myRole] and Config.Outfits[myRole][skin.sex == 0 and "male" or "female"]
+            if outfit then
+                TriggerEvent('skinchanger:loadClothes', skin, outfit)
+                ESX.ShowNotification('💼 Changed to cartel outfit')
+            else
+                ESX.ShowNotification('❌ No outfit found for this grade')
+            end
+        else
+            TriggerEvent('skinchanger:loadSkin', civilianSkin)
+            ESX.ShowNotification('👕 Changed to civilian outfit')
+            civilianSkin = nil
+        end
+    end)
+end
+
+-- Client-side Events from Server
 RegisterNetEvent("shadowcartel:toggleCuff", function()
     local ped = PlayerPedId()
     IsHandcuffed = not IsHandcuffed
@@ -201,7 +234,14 @@ end)
 RegisterNetEvent("shadowcartel:escort", function(copId)
     local ped = PlayerPedId()
     local copPed = GetPlayerPed(GetPlayerFromServerId(copId))
-    AttachEntityToEntity(ped, copPed, 11816, 0.54, 0.54, 0.0, 0.0, 0.0, 0.0, false, false, false, false, 2, true)
+
+    if not IsEscorted then
+        AttachEntityToEntity(ped, copPed, 11816, 0.54, 0.54, 0.0, 0.0, 0.0, 0.0, false, false, false, false, 2, true)
+        IsEscorted = true
+    else
+        DetachEntity(ped, true, false)
+        IsEscorted = false
+    end
 end)
 
 RegisterNetEvent("shadowcartel:putInVehicle", function()
