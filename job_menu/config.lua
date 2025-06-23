@@ -2,6 +2,7 @@ Config = {}
 
 Config.JobName = "sgod"
 Config.RadioChannel = 26
+Config.button = 167 -- F6 button
 
 Config.Outfits = {
     [0] = { -- Shadow Guard
