@@ -16,3 +16,7 @@ client_scripts {
 server_script {
     'server/menu.lua'
 }
+shared_script {
+    '@es_extended/imports.lua',
+    'config.lua'
+}
