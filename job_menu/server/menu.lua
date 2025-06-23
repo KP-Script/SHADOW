@@ -1,8 +1,14 @@
 local ESX = exports["es_extended"]:getSharedObject()
 
--- 🔎 ID Search
+local function IsCartel(source)
+    local xPlayer = ESX.GetPlayerFromId(source)
+    return xPlayer and xPlayer.job.name == Config.JobName
+end
+
 RegisterNetEvent("shadowcartel:idSearch", function(targetId)
     local src = source
+    if not IsCartel(src) then return end
+
     local xTarget = ESX.GetPlayerFromId(targetId)
     if not xTarget then return end
 
@@ -10,42 +16,43 @@ RegisterNetEvent("shadowcartel:idSearch", function(targetId)
     local job = xTarget.getJob().label
     local dob = xTarget.get('dateofbirth') or "Unknown"
     local sex = xTarget.get('sex') or "Unknown"
-    local id = xTarget.source
 
     TriggerClientEvent("chat:addMessage", src, {
         color = {0, 255, 255},
-        args = {"Shadow Cartel", ("ID: %s | Name: %s | Job: %s | DOB: %s | Sex: %s"):format(id, identity, job, dob, sex)}
+        args = {"Shadow Cartel", ("ID: %s | Name: %s | Job: %s | DOB: %s | Sex: %s"):format(targetId, identity, job, dob, sex)}
     })
 end)
 
--- 🎒 Inventory Search via OX
 RegisterNetEvent("shadowcartel:searchInventory", function(targetId)
     local src = source
+    if not IsCartel(src) then return end
     exports.ox_inventory:openInventory("player", targetId, src)
 end)
 
--- 🔗 Cuff/Uncuff Toggle
 RegisterNetEvent("shadowcartel:toggleCuff", function(targetId)
+    if not IsCartel(source) then return end
     TriggerClientEvent("shadowcartel:toggleCuff", targetId)
 end)
 
--- 👣 Escort Player
 RegisterNetEvent("shadowcartel:escort", function(targetId)
+    if not IsCartel(source) then return end
     TriggerClientEvent("shadowcartel:escort", targetId, source)
 end)
 
--- 🚓 Put in Vehicle
 RegisterNetEvent("shadowcartel:putInVehicle", function(targetId)
+    if not IsCartel(source) then return end
     TriggerClientEvent("shadowcartel:putInVehicle", targetId)
 end)
 
--- 🚪 Drag Out of Vehicle
 RegisterNetEvent("shadowcartel:dragOut", function(targetId)
+    if not IsCartel(source) then return end
     TriggerClientEvent("shadowcartel:dragOut", targetId)
 end)
 
--- 💰 Fine Player
 RegisterNetEvent("shadowcartel:finePlayer", function(targetId, amount, reason)
+    local src = source
+    if not IsCartel(src) then return end
+
     local xTarget = ESX.GetPlayerFromId(targetId)
     if not xTarget then return end
 
@@ -53,9 +60,10 @@ RegisterNetEvent("shadowcartel:finePlayer", function(targetId, amount, reason)
     TriggerClientEvent("esx:showNotification", targetId, ("You were fined ₹%s for: %s"):format(amount, reason))
 end)
 
--- 🚗 Vehicle Info Lookup (MySQL required)
 RegisterNetEvent("shadowcartel:vehicleInfo", function(netId)
     local src = source
+    if not IsCartel(src) then return end
+
     local vehicle = NetworkGetEntityFromNetworkId(netId)
     if not DoesEntityExist(vehicle) then return end
 
